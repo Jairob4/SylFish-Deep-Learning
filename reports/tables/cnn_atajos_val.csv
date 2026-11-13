@@ -1,0 +1,3 @@
+version,n,accuracy,f1_macro
+original,1066,0.9906,0.9913
+fondo_neutralizado,1066,0.818,0.8263

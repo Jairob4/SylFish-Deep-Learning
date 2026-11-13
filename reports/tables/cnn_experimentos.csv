@@ -1,0 +1,7 @@
+id,cambio,accuracy_val,f1_macro_val,mejor_epoca,notas
+linea_base,punto de partida (línea base),0.9691,0.9693,33,"lr=1e-3, ES patience=8, LR patience=3, batch=32"
+l2,L2(1e-4) en convs y Dense(256),0.961,0.961,35,"regularización L2, resto igual a línea base"
+aumento,RandomRotation 0.1→0.25 + RandomErasing(0.1),0.7035,0.7354,4,"aumento más agresivo, resto igual a línea base"
+sin_cw,sin class_weight,0.4982,0.4525,2,"mide el efecto del balanceo, resto igual a línea base"
+tl_fase1,EfficientNetB0 congelada + GAP/Dropout(0.3)/Dense(9),0.9772,0.981,35,"transfer learning fase 1, lr=1e-3"
+tl_fase2,"fine-tuning: últimas 30 capas de EfficientNetB0, lr=1e-5",0.9875,0.9892,13,"transfer learning fase 2, BN congeladas, 15 épocas máx"

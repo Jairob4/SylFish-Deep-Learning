@@ -1,0 +1,10 @@
+# Librerías principales (Colab ya trae la mayoría). Para fijar versiones exactas,
+# ejecutar `pip freeze | grep -iE "tensorflow|keras|opencv|numpy|pandas|scikit-learn|matplotlib|gradio|pillow"` en Colab.
+tensorflow
+opencv-python-headless
+numpy
+pandas
+scikit-learn
+matplotlib
+pillow
+gradio

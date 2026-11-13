@@ -1,0 +1,29 @@
+# Datos y artefactos pesados (viven en Drive, no en git)
+data/images/
+data/processed/*.npz
+*.npz
+*.zip
+masks/
+*.keras
+*.h5
+*.weights.h5
+
+# Colab / Jupyter
+.ipynb_checkpoints/
+.virtual_documents/
+
+# Gradio
+flagged/
+gradio_cached_examples/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+# Sistema y secretos
+.DS_Store
+Thumbs.db
+.env
+*.key
