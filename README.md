@@ -1,4 +1,4 @@
-# sylfish-dl
+# SylFish - Deep Learning
 
 Clasificación y segmentación de peces con deep learning, sobre la base de datos SylFishBD. Es el proyecto final de Inteligencia Artificial (Universidad del Magdalena, 2026-2). Entrega: sábado 14 de noviembre de 2026.
 
@@ -91,8 +91,6 @@ Cada módulo tiene su `GUIA.md` (plan de trabajo) y un `.md` con propósito, pre
 
 ## Cómo ejecutar
 
-Se copia la carpeta de Drive ([enlace a la carpeta de Drive]) a `MyDrive/sylfish/` y se monta en Colab. Luego se abren los cuadernos en este orden: `01_preparacion_datos` (deja `splits.csv`, las máscaras y los `.npz` en Drive), `02_cnn` y `03_unet` (leen el caché del 01 y pueden correr en paralelo) y `04_demo` (carga `cnn_best.keras`, `unet_v1.keras` y `unet_v1_umbral.json`, y abre la interfaz Gradio). Todo usa una GPU T4, salvo el 01, que corre en CPU casi por completo.
+Se copia la carpeta de Drive (https://drive.google.com/drive/folders/1taTrSyyyjND9iM3SYT313Oj7lgGljFiC?usp=sharing) a `MyDrive/sylfish/` y se monta en Colab. Luego se abren los cuadernos en este orden: `01_preparacion_datos` (deja `splits.csv`, las máscaras y los `.npz` en Drive), `02_cnn` y `03_unet` (leen el caché del 01 y pueden correr en paralelo) y `04_demo` (carga `cnn_best.keras`, `unet_v1.keras` y `unet_v1_umbral.json`, y abre la interfaz Gradio). Todo usa una GPU T4, salvo el 01, que corre en CPU casi por completo.
 
-## Equipo
 
-Jairo de Jesús Blanco Pérez: preparación de datos, máscaras, U-Net y demo. Compañero DL: CNN de clasificación. La parte de ML clásico la desarrolla otro subgrupo fuera de este repositorio.
