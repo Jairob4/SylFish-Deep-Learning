@@ -1,0 +1,33 @@
+{
+  "fecha": "2026-11-19T08:50:22",
+  "decision": "v2",
+  "regla_evaluada": false,
+  "criterio": "juicio visual directo; la regla de ventaja no se evaluó y el criterio se cambió después de ver las cuadrículas",
+  "tau_v1": 0.6,
+  "tau_v2": 0.6,
+  "conteos_por_estrato": {
+    "bien": {
+      "aleatoria": 15,
+      "peor": 7,
+      "descartada": 5
+    },
+    "parcial": {
+      "aleatoria": 0,
+      "peor": 0,
+      "descartada": 0
+    },
+    "mal": {
+      "aleatoria": 0,
+      "peor": 1,
+      "descartada": 2
+    }
+  },
+  "v2_fallas": {
+    "parcial": [],
+    "mal": [
+      29,
+      24,
+      22
+    ]
+  }
+}

@@ -1,6 +1,8 @@
 # Módulo 03: U-Net (segmentación pez/fondo)
 
-*Documento del informe y guía de estudio. Un solo MD por módulo: propósito, preconceptos, decisiones, resultados, limitaciones y glosario. Última actualización: jueves 12 de noviembre de 2026.*
+*Documento del informe y guía de estudio. Un solo MD por módulo: propósito, preconceptos, decisiones, resultados, limitaciones y glosario. Última actualización: jueves 19 de noviembre de 2026 (nota de modelo final; el contenido de las secciones 1 a 6 describe `unet_v1`, de la actualización del 12 de noviembre).*
+
+> **Modelo final.** Después de evaluar la opción SAM 2 (módulo 05, `05_SAM2.md`), el modelo de segmentación seleccionado es **`unet_v2`**: la misma arquitectura de este módulo, entrenada desde cero con máscaras de SAM 2 (`models/unet_v2.keras`, `models/unet_v2_umbral.json`, $\tau = 0.6$). Este módulo documenta la **`unet_v1`** (entrenada con GrabCut), que queda como respaldo y como punto de partida de la v2: sus cajas sirvieron de prompt para SAM 2. Las cifras de esta página (0.8334 en val, 0.8344 en test) son de la v1 contra GrabCut y **no son comparables** con las de la v2 (0.8962 en val, 0.8944 en test, contra SAM 2).
 
 ## 1. Propósito
 
@@ -10,7 +12,7 @@ Entradas: `unet_256_{train,val,test}.npz` y `mask_qc.csv` del módulo 01, filtra
 
 Salidas: `models/unet_v1.keras` (mejor modelo según el mIoU de validación), `models/unet_v1_umbral.json` (umbral $\tau$ fijado en val), y las tablas y figuras de `reports/`.
 
-Contrato con el módulo 04: la demo carga `unet_v1.keras` y el $\tau$ del JSON, redimensiona la imagen a $256 \times 256$, divide entre 255 y binariza la salida con $\tau$.
+Contrato con el módulo 04: la demo carga el modelo y el $\tau$ del JSON (con la v2, `unet_v2.keras` y `unet_v2_umbral.json`; el preprocesamiento es el mismo), redimensiona la imagen a $256 \times 256$, divide entre 255 y binariza la salida con $\tau$.
 
 ## 2. Preconceptos
 
@@ -89,7 +91,7 @@ Transformaciones aleatorias aplicadas **solo en entrenamiento** para que la red 
 
 ### 2.9 Pseudo-máscaras
 
-Las máscaras de entrenamiento no son verdad del terreno: las generó GrabCut (módulo 01). El IoU mide **acuerdo con GrabCut**, no con el pez real.
+Las máscaras de entrenamiento de la v1 no son verdad del terreno: las generó GrabCut (módulo 01). El IoU mide **acuerdo con GrabCut**, no con el pez real. (La v2 se entrena con pseudo-máscaras de SAM 2; ver módulo 05.)
 
 ## 3. Decisiones y datos
 
@@ -112,13 +114,14 @@ Las máscaras de entrenamiento no son verdad del terreno: las generó GrabCut (m
 | 2026-11-12 | $\tau = 0.6$, elegido en val | mIoU de $0.8334$ frente a $0.833$ con $0.5$: diferencia despreciable y curva casi plana |
 | 2026-11-12 | Test evaluado **una sola vez** con el modelo congelado y $\tau$ fijado | Regla de `CONTEXTO.md`: se elige con val, se reporta con test |
 | 2026-11-12 | Autoentrenamiento (usar la U-Net para etiquetar las descartadas y reentrenar) **no se hace en esta entrega** | Circularidad (las descartadas son las escenas más difíciles) y 1.5 a 2 horas de costo sin una medida de beneficio. Si se hace, debe compararse en val **antes** de correr test |
+| 2026-11-19 | **Modelo final: `unet_v2`** (misma arquitectura, entrenada con máscaras de SAM 2), tras evaluar la opción SAM 2. `unet_v1` queda como respaldo | Juicio visual directo (27 de 30 "bien" en val; SAM 2 mejor que GrabCut en 30 de 30); ver `05_SAM2.md`. Reemplaza la decisión del 2026-11-12 de que `unet_v1` fuera el modelo final |
 
-## 4. Resultados
+## 4. Resultados (`unet_v1`)
 
 ### 4.1 Arquitectura
 
 - Entrada $(256, 256, 3)$; salida $(256, 256, 1)$.
-- Parámetros: **1,946,993** en total, 1,944,049 entrenables y 2,944 no entrenables (los promedios móviles de la BN). Coincide con el cálculo a mano.
+- Parámetros: **1,946,993** en total, 1,944,049 entrenables y 2,944 no entrenables (los promedios móviles de la BN). Coincide con el cálculo a mano. La v2 tiene la misma arquitectura y el mismo número de parámetros.
 
 ### 4.2 Entrenamiento
 
@@ -218,9 +221,9 @@ IoU por clase en test:
 
 - Análisis de sensibilidad de la matriz de confusión: Dice global con y sin las imágenes de IoU $< 0.1$, reportando ambas cifras.
 - Revisión manual de unas 20 a 30 imágenes de val con IoU $< 0.1$ (etiqueta mala frente a falla de la red) y, con tiempo, anotación a mano de una muestra para calcular el IoU de la red y el de GrabCut contra la misma referencia.
-- Módulo 04 (demo): cargar el modelo y el umbral, mostrar el área predicha y advertir si cae fuera de $[0.02, 0.35]$.
+- Módulo 04 (demo): cargar el modelo final (`unet_v2`) y su umbral, mostrar el área predicha y advertir si cae fuera de $[0.02, 0.35]$.
 
-## 5. Limitaciones
+## 5. Limitaciones (`unet_v1`)
 
 1. **Pseudo-máscaras.** El IoU y el Dice miden acuerdo con GrabCut, no con la verdad del terreno. Un falso positivo o negativo puede ser error de la red o de la etiqueta, y la matriz de confusión no los distingue.
 2. **Sesgo de selección.** Las métricas son solo sobre imágenes con `qc_ok`. El $\approx 21\,\%$ con plato, balde o mesa grandes no entró al entrenamiento ni a las métricas; la red no se evaluó en ellas, y es probable que rinda peor.
@@ -232,6 +235,8 @@ IoU por clase en test:
 8. **Una sola corrida.** No se midió la variabilidad entre semillas.
 9. **Revisión visual de pocas muestras.** Las proporciones de la sección 4.6 salen de 8 imágenes por figura, contadas a ojo.
 10. **Umbral.** La ganancia de $\tau = 0.6$ sobre $0.5$ es de unas cuatro diezmilésimas; no es una mejora real.
+
+Las limitaciones de la `unet_v2` (etiquetas de SAM 2, decisión por juicio visual, poblaciones distintas) están en `05_SAM2.md`, sección 5.
 
 ## 6. Glosario
 
@@ -287,6 +292,7 @@ IoU por clase en test:
 | Término | Definición breve |
 |---|---|
 | `qc_ok` | Máscara que pasó el control de calidad del módulo 01 |
-| Pseudo-máscara | Máscara generada por GrabCut; no es verdad del terreno |
+| Pseudo-máscara | Máscara generada automáticamente (GrabCut en la v1, SAM 2 en la v2); no es verdad del terreno |
 | Autoentrenamiento | Usar un modelo para etiquetar datos y reentrenar con ellas |
 | Pseudo-etiqueta | Etiqueta generada por un modelo |
+| `unet_v2` | Misma U-Net entrenada con máscaras de SAM 2 (módulo 05); modelo final |

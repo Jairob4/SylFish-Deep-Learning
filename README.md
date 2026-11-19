@@ -1,17 +1,15 @@
-# SylFish - Deep Learning
+# sylfish-dl
 
-Clasificación y segmentación de peces con deep learning, sobre la base de datos SylFishBD. Es el proyecto final de Inteligencia Artificial (Universidad del Magdalena, 2026-2). Entrega: sábado 14 de noviembre de 2026.
+Clasificación y segmentación de peces con deep learning, sobre la base de datos SylFishBD. Es el proyecto final de Inteligencia Artificial (Universidad del Magdalena, 2026-2). Entrega: sábado 21 de noviembre de 2026.
 
 El sistema recibe la fotografía de un pez y responde dos cosas: de qué especie es, con qué confianza, y dónde está. La demo es una interfaz Gradio ejecutada en Colab (`share=True`, enlace público temporal): se sube una imagen y se obtiene la imagen con el contorno del pez y una leyenda con la especie y el porcentaje de confianza, más un resumen con el área del pez.
-
-Este repositorio contiene la parte de deep learning. La parte de ML clásico, que desarrolla otro subgrupo del equipo, vive fuera de este repositorio y usa el mismo `splits.csv`.
 
 ## Cómo funciona
 
 ```
               ┌─► CNN (EfficientNetB0)  ─► especie + confianza ─┐
 foto del pez ─┤                                                  ├─► imagen con contorno y leyenda
-              └─► U-Net (binaria)       ─► máscara pez/fondo  ───┘
+              └─► U-Net v2 (binaria)    ─► máscara pez/fondo  ───┘
 ```
 
 Son dos modelos independientes que solo se unen en la demo. Se entrenan, validan y guardan por separado, de modo que el fallo de uno no contamina al otro y cada uno tiene sus propias métricas.
@@ -26,48 +24,44 @@ SylFishBD tiene 9075 fotografías JPG a color de 500×500 píxeles. La única an
 
 La razón entre la clase mayor y la menor es $1670/525\approx3.18$. Hay copias exactas y casi duplicadas, así que la partición se hace **por grupos de duplicados** (MD5 y dHash con distancia de Hamming $\le 5$), 70/15/15 y con semilla 42: una foto y sus copias nunca quedan en conjuntos distintos. Quedan 8975 imágenes (train 6246, val 1359, test 1370); 100 se excluyeron por ruido de etiqueta. Las imágenes, las máscaras, los `.npz` y los modelos no están en este repositorio: viven en Drive ([enlace a la carpeta de Drive]). Referencia del dataset: [completar referencia del dataset].
 
-## Solución
+## Segmentación: máscaras con SAM 2 y U-Net v2 (módulo 05)
 
-**Clasificador (CNN).** EfficientNetB0 preentrenada en ImageNet con una cabeza nueva de 9 clases (`GlobalAveragePooling2D`, `Dropout` 0.3, `Dense` 9 con softmax). Se entrena en dos fases: primero solo la cabeza ($\eta=10^{-3}$) y después un ajuste fino de las últimas 30 capas del backbone ($\eta=10^{-5}$) con las capas `BatchNormalization` en modo inferencia. Entrada: RGB 224×224 con valores 0–255, porque EfficientNetB0 normaliza por dentro. El aumento (volteos, rotación, zoom, contraste) va dentro del modelo y solo actúa en entrenamiento. Como línea base se entrenó una CNN propia de 5 bloques Conv-BN-ReLU-MaxPool (≈ 1.05 M de parámetros). Para compensar el desbalance se usan pesos de clase $w_c=N/(K\,N_c)$ y se elige el modelo por F1 macro en validación.
+**Problema.** Como el dataset no trae máscaras, la primera versión de la U-Net (`unet_v1`) se entrenó con pseudo-máscaras de GrabCut (OpenCV). GrabCut dejó 640 máscaras vacías y su control de calidad descartó 1857 de 8975 (20.7 %), sobre todo escenas con plato, balde o mesa; solo 7118 máscaras quedaron aptas.
 
-**Segmentación (U-Net).** Red codificador-decodificador hecha desde cero en Keras (API funcional), con 4 niveles de 16, 32, 64 y 128 filtros, un cuello de botella de 256 filtros a 16×16 y `Conv2DTranspose` 2×2 para subir. Cada nivel usa dos veces Conv 3×3, `BatchNormalization` y ReLU, y las conexiones de salto se concatenan. Tiene 1,946,993 parámetros. Entrada 256×256 dividida entre 255; salida de 1 canal con sigmoide. La pérdida suma entropía cruzada binaria y Dice, que contrarresta que el pez ocupe solo ≈ 15 % de los píxeles:
+**Idea.** Usar **SAM 2** (Segment Anything Model 2, de Meta) como herramienta de **etiquetado offline**: genera máscaras nuevas una sola vez y no forma parte del sistema entregado. La U-Net se reentrena desde cero con esas máscaras.
 
-$$\mathcal{L}=\mathcal{L}_{BCE}+\mathcal{L}_{Dice},\qquad \mathcal{L}_{Dice}=1-\frac{2\sum_i p_i g_i+\varepsilon}{\sum_i p_i+\sum_i g_i+\varepsilon}$$
+**Pipeline** (cuadernos `05_preparacion_mascaras_sam2_{A_prompts,B_sam2,C_unet_v2}`):
 
-donde $p_i$ es la probabilidad predicha y $g_i\in\{0,1\}$ la máscara de referencia. La métrica principal es el mIoU por imagen, con $\mathrm{IoU}(A,B)=|A\cap B|/|A\cup B|$ y la máscara binarizada con $\tau=0.6$ (elegido en validación).
+1. **A (TensorFlow).** La `unet_v1` predice una caja y un centroide por imagen; esos son los prompts de SAM 2. Se sortea una muestra de 30 imágenes de val para revisar a ojo.
+2. **B (PyTorch).** Piloto visual con dos prompts (P1: caja fija; P3: caja de la v1 ampliada 5 % más un punto positivo en el centroide). P3 acertó en 27 de 30 imágenes (a ojo) y se aplicó al lote completo de 8975 imágenes (34 min en una T4). Posproceso con OpenCV (componente conexa mayor y relleno de huecos) y control de calidad recalibrado solo con val: $0.02 \le$ área $\le 0.35$ y banda de borde $\le 0.08$.
+3. **C (TensorFlow).** Se entrena la **U-Net v2**, con arquitectura, hiperparámetros y semilla idénticos a la v1 (1,946,993 parámetros, BCE + Dice, Adam $10^{-3}$, lote 16, semilla 42); solo cambian las etiquetas. Se elige $\tau$ en val y el test se evalúa una sola vez.
 
-**Máscaras.** Como el dataset no trae máscaras, se generan con GrabCut (OpenCV) y un control de calidad por área y ocupación del borde. La U-Net se entrena y se evalúa solo con las máscaras que pasan el control (7118 de 8975; train 4933, val 1066, test 1119). Es decir, aprende de **pseudo-máscaras**, no de una verdad de terreno dibujada a mano.
+**Resultado del control de calidad.** La retención sube de 7118 a 8702 de 8975 imágenes (79.3 % a 97.0 %). Por clase, `boal` pasa de 63.3 % a 94.3 % e `ilish` de 62.6 % a 93.9 %.
+
+**Modelo final.** Tras evaluar la opción SAM 2, el modelo de segmentación seleccionado es **`unet_v2`** (`models/unet_v2.keras`, `models/unet_v2_umbral.json`, $\tau = 0.6$). Se eligió por juicio visual directo: la v2 acertó en 27 de 30 imágenes de val (a ojo) y SAM 2 resultó mejor que GrabCut en las 30 comparadas; la v1 no se calificó y la regla de ventaja fijada de antemano no se evaluó. `unet_v1` queda como respaldo.
+
+| Modelo | Etiquetas de referencia | mIoU por imagen (val) | mIoU por imagen (test) | Imágenes evaluadas (test) |
+|---|---|---|---|---|
+| `unet_v1` | GrabCut | 0.8334 | 0.8344 | 1119 |
+| **`unet_v2`** (final) | SAM 2 | 0.8962 | 0.8944 | 1335 |
+
+**Esas dos filas no son comparables:** cada mIoU se mide contra las máscaras con que se entrenó el modelo (GrabCut o SAM 2) y sobre un conjunto distinto de imágenes (`qc_ok` 7118 contra `sam2_qc_ok` 8702). La evidencia de que la v2 es mejor es visual y de una sola persona, no una cifra.
 
 ## Evaluación
 
-Todas las decisiones (arquitectura, umbral $\tau$, selección de modelo) se toman en validación. El test se evalúa una sola vez, con el modelo congelado.
+Todas las decisiones (arquitectura, umbral $\tau$, prompt, umbrales del control de calidad, selección de modelo) se toman en validación. El test se evalúa una sola vez, con el modelo congelado. El test ya se había evaluado con la `unet_v1` antes de entrenar la v2, y eso se declara. La U-Net se evalúa con IoU por imagen (media y mediana) y, para la v1, también con Dice global y matriz de confusión de píxeles.
 
-La CNN se evalúa con accuracy, F1 macro, `classification_report` y matriz de confusión normalizada por filas; la accuracy sola engaña con un desbalance de 3.18. La U-Net se evalúa con IoU por imagen (media y mediana), Dice global y matriz de confusión de píxeles.
+## Limitaciones de la segmentación
 
-## Resultados
+- Las máscaras de SAM 2 siguen siendo pseudo-máscaras, no verdad de terreno; la comparación v1/v2 es visual, sobre 30 imágenes de val y calificada por una persona.
+- Con el prompt P3, la v2 hereda dónde localizó el pez la v1 (circularidad parcial); P1 no se calificó imagen por imagen.
+- En una auditoría a ojo, 2 de 12 máscaras aprobadas estaban contaminadas (plato o mancha extra) y 2 de 12 descartadas eran peces grandes bien segmentados que el umbral de área elimina.
+- El entrenamiento de la v2 llegó al tope de 40 épocas (mejor época 37) y se hizo una sola corrida.
+- La decisión de adoptar la v2 se tomó después de ver las cuadrículas, por juicio visual directo y sin aplicar la regla fijada antes.
+- SAM 2 corre con PyTorch, fuera del pipeline de Keras; es solo etiquetado offline.
+- El cambio de la demo a `unet_v2` y su prueba con fotos externas están pendientes.
 
-| Modelo | Métrica | Validación | Prueba |
-|---|---|---|---|
-| CNN (EfficientNetB0, `tl_fase2`) | Accuracy | 0.9875 | 0.9942 |
-| CNN (EfficientNetB0, `tl_fase2`) | F1 macro | 0.9892 | 0.9955 |
-| U-Net | mIoU por imagen | 0.8334 | 0.8344 |
-
-La CNN desde cero obtuvo, con el mismo protocolo, 0.9691 de accuracy y 0.9693 de F1 macro en validación.
-
-Cómo leer estas cifras:
-
-- El IoU de la U-Net mide acuerdo con las pseudo-máscaras de GrabCut, no con una verdad de terreno. En los peores casos de validación que se revisaron a mano, la red suele dibujar mejor que su máscara de referencia, así que el mIoU sería una cota inferior de la calidad real; es una observación cualitativa sobre pocas muestras.
-- Las cifras de la CNN son en distribución. Al neutralizar el fondo de las imágenes de validación (con máscara ok) la accuracy baja de 0.99 a 0.82, lo que indica que la red también usa el contexto y no solo el pez. Con fotos de otros fondos puede rendir peor.
-- La confianza es el máximo del softmax y no está calibrada: la media fue 0.986 en aciertos y 0.722 en errores en validación.
-
-## Limitaciones
-
-- Clasificador de conjunto cerrado: no existe la clase "otro", así que una especie desconocida se asigna a una de las 9.
-- La U-Net no vio el ≈ 21 % de imágenes con plato, balde o mesa grandes (descartadas por el control de calidad); con fondos muy recargados, como un acuario con plantas, el contorno puede fallar.
-- Cada experimento se corrió con una sola semilla y los experimentos `aumento` y `sin_cw` de la CNN resultaron inestables, por lo que no son concluyentes.
-- La prueba de la demo con fotos externas es cualitativa y de cuatro imágenes.
-
-El detalle de cada módulo, con sus decisiones y limitaciones, está en su carpeta de `notebooks/`.
+El detalle completo, con decisiones, cifras y glosario, está en `05_SAM2.md`.
 
 ## Estructura del repositorio
 
@@ -79,18 +73,15 @@ sylfish-dl/
 │   ├── 01_preparacion_datos/         cuaderno, GUIA.md y 01_PREPARACION_DATOS.md
 │   ├── 02_cnn/                       cuaderno, GUIA.md y 02_CNN.md
 │   ├── 03_unet/                      cuaderno, GUIA.md y 03_UNET.md
-│   └── 04_demo/                      cuaderno, GUIA.md y 04_DEMO.md
+│   ├── 04_demo/                      cuaderno, GUIA.md y 04_DEMO.md
+│   └── 05_sam2/                      cuadernos A, B y C y 05_SAM2.md
 └── reports/
     ├── figures/                      figuras de los informes
     └── tables/                       tablas de resultados (.csv, .json)
 ```
 
-El repositorio solo contiene los cuadernos, sus guías y los resultados. Los datos y los modelos están en la carpeta de Drive: [enlace a la carpeta de Drive].
-
-Cada módulo tiene su `GUIA.md` (plan de trabajo) y un `.md` con propósito, preconceptos, decisiones, resultados, limitaciones y glosario. Cada cuaderno es autocontenido: carga sus datos, define el modelo, entrena y evalúa en el mismo archivo, y no hay módulos `.py` compartidos. Las constantes comunes (semilla, tamaños, rutas, orden de clases) se copian idénticas en una celda de configuración al inicio de cada uno.
+El repositorio solo contiene los cuadernos, sus guías y los resultados. Los datos y los modelos están en la carpeta de Drive: [\[enlace a la carpeta de Drive\]](https://drive.google.com/drive/folders/1taTrSyyyjND9iM3SYT313Oj7lgGljFiC?hl=es). Los cuadernos del 05 requieren PyTorch y SAM 2 (cuaderno B) además de TensorFlow, en sesiones de Colab separadas; esas dependencias se documentan aparte de `requirements.txt`.
 
 ## Cómo ejecutar
 
-Se copia la carpeta de Drive (https://drive.google.com/drive/folders/1taTrSyyyjND9iM3SYT313Oj7lgGljFiC?usp=sharing) a `MyDrive/sylfish/` y se monta en Colab. Luego se abren los cuadernos en este orden: `01_preparacion_datos` (deja `splits.csv`, las máscaras y los `.npz` en Drive), `02_cnn` y `03_unet` (leen el caché del 01 y pueden correr en paralelo) y `04_demo` (carga `cnn_best.keras`, `unet_v1.keras` y `unet_v1_umbral.json`, y abre la interfaz Gradio). Todo usa una GPU T4, salvo el 01, que corre en CPU casi por completo.
-
-
+Se copia la carpeta de Drive ([\click acá\]](https://drive.google.com/drive/folders/1taTrSyyyjND9iM3SYT313Oj7lgGljFiC?hl=es)) a `MyDrive/sylfish/` y se monta en Colab. Los módulos 01 a 04 se abren en orden; el 01 deja `splits.csv`, las máscaras y los `.npz` en Drive. El módulo 05 se ejecuta después, en tres sesiones nuevas de Colab con GPU T4 (A, B y C, en ese orden), y deja `unet_v2.keras` y `unet_v2_umbral.json` en `models/`. La demo usa la U-Net v2: carga `unet_v2.keras` y `unet_v2_umbral.json`, con el mismo preprocesamiento de entrada que la v1 (RGB 256×256, `INTER_AREA`, dividido entre 255).

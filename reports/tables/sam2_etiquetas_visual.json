@@ -1,0 +1,71 @@
+{
+  "ids": {
+    "sam2_mejor": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      7,
+      8,
+      9,
+      10,
+      11,
+      12,
+      13,
+      14,
+      15,
+      16,
+      17,
+      18,
+      19,
+      20,
+      21,
+      22,
+      23,
+      24,
+      25,
+      26,
+      27,
+      28,
+      29,
+      30
+    ],
+    "igual": [],
+    "sam2_peor": []
+  },
+  "conteos_por_estrato": {
+    "aleatoria": {
+      "sam2_mejor": 15,
+      "igual": 0,
+      "sam2_peor": 0
+    },
+    "peor": {
+      "sam2_mejor": 8,
+      "igual": 0,
+      "sam2_peor": 0
+    },
+    "descartada": {
+      "sam2_mejor": 7,
+      "igual": 0,
+      "sam2_peor": 0
+    }
+  },
+  "conteos_total": {
+    "sam2_mejor": 30,
+    "igual": 0,
+    "sam2_peor": 0
+  },
+  "mejora_por_estrato": {
+    "aleatoria": true,
+    "peor": true,
+    "descartada": true
+  },
+  "retencion_sam2_pct": 96.958217270195,
+  "retencion_grabcut_pct": 79.3091922005571,
+  "retencion_parecida_pp": 2.0,
+  "decision": "Bien",
+  "prompt": "P3",
+  "checkpoint": "sam2.1_hiera_small.pt"
+}

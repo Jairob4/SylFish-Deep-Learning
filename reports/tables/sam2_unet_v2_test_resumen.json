@@ -1,0 +1,8 @@
+{
+  "fecha": "2026-11-19T08:51:16",
+  "modelo": "models/unet_v2.keras",
+  "tau": 0.6,
+  "n_test_sam2_qc_ok": 1335,
+  "miou_test_vs_sam2": 0.8944,
+  "nota": "Contra pseudo-máscaras de SAM 2; no comparable con el 0.8344 de la v1 (contra GrabCut)."
+}

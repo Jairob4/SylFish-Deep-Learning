@@ -1,0 +1,9 @@
+{
+  "fecha": "2026-11-19T08:50:44",
+  "modelo": "models/unet_v2.keras",
+  "md5_modelo": "80b4cf97b0c326e0e399029434d7551d",
+  "tau": 0.6,
+  "etiquetas": "sam2",
+  "criterio": "v2 adoptada según la regla de sam2_seleccion.json (calificación visual por estratos); test usado una sola vez",
+  "regla_ventaja_azar": null
+}
