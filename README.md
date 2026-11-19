@@ -85,3 +85,7 @@ El repositorio solo contiene los cuadernos, sus guías y los resultados. Los dat
 ## Cómo ejecutar
 
 Se copia la carpeta de Drive ([\click acá\]](https://drive.google.com/drive/folders/1taTrSyyyjND9iM3SYT313Oj7lgGljFiC?hl=es)) a `MyDrive/sylfish/` y se monta en Colab. Los módulos 01 a 04 se abren en orden; el 01 deja `splits.csv`, las máscaras y los `.npz` en Drive. El módulo 05 se ejecuta después, en tres sesiones nuevas de Colab con GPU T4 (A, B y C, en ese orden), y deja `unet_v2.keras` y `unet_v2_umbral.json` en `models/`. La demo usa la U-Net v2: carga `unet_v2.keras` y `unet_v2_umbral.json`, con el mismo preprocesamiento de entrada que la v1 (RGB 256×256, `INTER_AREA`, dividido entre 255).
+
+## Autores
+- Jairo de Jesús Blanco Pérez
+- Luis Angel Rojas Peralza
